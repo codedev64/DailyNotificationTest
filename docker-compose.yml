@@ -1,0 +1,54 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: mysql-db
+    restart: always
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: notificationsdb
+    volumes:
+      - dbdata:/var/lib/mysql
+      - ./Seeders/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+      - ./Seeders/my.cnf:/etc/mysql/conf.d/my.cnf  # <- this line
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 20s
+      retries: 10
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: phpmyadmin-ui
+    restart: always
+    ports:
+      - "8080:80"
+    environment:
+      PMA_HOST: db
+      MYSQL_ROOT_PASSWORD: rootpassword
+    depends_on:
+      - db
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dotnet-api
+    volumes:
+      - .:/app                          # Mount local code to container
+      - ~/.nuget/packages:/root/.nuget/packages  # Reuse NuGet cache
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "5001:80"
+    environment:
+      DOTNET_USE_POLLING_FILE_WATCHER: "1"
+      DOTNET_WATCH_RESTART_ON_RUDE_EDIT: "1"
+    command: dotnet watch run --urls=http://0.0.0.0:80
+    networks:
+    - default
+
+volumes:
+  dbdata:
+
+
